@@ -8,6 +8,15 @@ import (
 	"github.com/pkg/errors"
 )
 
+// Patch lets you overwrite unexported fields of structs even when:
+// * the fields are deeply nested
+// * the fields are of an unexported type
+//
+// This is done by creating a shadow struct of the same layout.
+// Patch then scans through the struct to the patched and for each field:
+// * If a field of the same name exists in the shadow then it will be patched.
+// * If the matching field is of the same type then it is overwritten directly.
+// * If the matching field is of a different type then the two types are patched recursively.
 func Patch(actualI interface{}, shadowI interface{}) error {
 	actual := reflect.ValueOf(actualI)
 	shadow := reflect.ValueOf(shadowI)
@@ -20,8 +29,8 @@ func Patch(actualI interface{}, shadowI interface{}) error {
 		actual = actual.Elem()
 
 		if shadow.Kind() != reflect.Ptr && shadow.Kind() != reflect.Interface {
-			// unaddressable so can't change values
-			return errors.New("cannot use unaddressable patch")
+			// unaddressable so can't change use to change values
+			return errors.New("cannot use unaddressable shadow")
 		}
 
 		shadow = shadow.Elem()
@@ -31,19 +40,18 @@ func Patch(actualI interface{}, shadowI interface{}) error {
 }
 
 func patch(actual reflect.Value, shadow reflect.Value) error {
-	fmt.Println("patching", actual, shadow)
 	switch actual.Kind() {
+	// Indirections
 	case reflect.Interface:
-		// no use recursing inside
-		return unsafeSet(actual, shadow)
+		return patchInterface(actual, shadow)
 	case reflect.Ptr:
 		return patchPtr(actual, shadow)
+
 	// Collections
 	case reflect.Struct:
-		fmt.Println("patching struct")
 		return patchStruct(actual, shadow)
-	//case reflect.Slice, reflect.Array:
-	//	return m.mapSlice(iVal, parentID, inlineable)
+	case reflect.Slice, reflect.Array:
+		return patchSlice(actual, shadow)
 	//case reflect.Map:
 	//	return m.mapMap(iVal, parentID, inlineable)
 	//
@@ -57,11 +65,22 @@ func patch(actual reflect.Value, shadow reflect.Value) error {
 	//case reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uint:
 	//	return m.mapUint(iVal, inlineable)
 
-	// If we've missed anything then just skip it
+	// Anything else should just be overwritable
 	default:
 		fmt.Println("patching primitive")
 		return patchPrimitive(actual, shadow)
 	}
+}
+
+func patchInterface(actual reflect.Value, shadow reflect.Value) error {
+	if shadow.Type() == actual.Type() {
+		// valid to just assign directly
+		return unsafeSet(actual, shadow)
+	}
+
+	// assume we're meant to be patching the underlying type
+	// TODO: add check here that actual.Elem is the same Kind as shadow
+	return patch(actual.Elem(), shadow)
 }
 
 func patchStruct(actual reflect.Value, shadow reflect.Value) error {
@@ -69,20 +88,19 @@ func patchStruct(actual reflect.Value, shadow reflect.Value) error {
 	for i := 0; i<actual.NumField(); i++ {
 		actualStructField := actual.Type().Field(i)
 		fieldName := actualStructField.Name
-		fmt.Println("examining field", fieldName)
 
-		patchField := shadow.FieldByName(fieldName)
-		if patchField.IsValid() {
-			patchStructField, _ := shadow.Type().FieldByName(fieldName)
-			fieldTags := patchStructField.Tag
+		shadowField := shadow.FieldByName(fieldName)
 
-			if val, ok := fieldTags.Lookup("monkey"); ok && val == "shallow"{
-				fmt.Println("patching field", fieldName, "shallow")
-				return unsafeSet(actual.FieldByName(fieldName), patchField)
+		// check if matching field found in shadow
+		if shadowField.IsValid() {
+
+			if actualStructField.Type == shadowField.Type() {
+				// fields are same type so overwrite directly
+				return unsafeSet(actual.FieldByName(fieldName), shadowField)
 			}
 
-			fmt.Println("patching field", fieldName, "recursively")
-			err := patch(actual.FieldByName(fieldName), patchField)
+			// fields not same type so need to patch recursively
+			err := patch(actual.FieldByName(fieldName), shadowField)
 			if err != nil {
 				return errors.Wrap(err, fieldName)
 			}
@@ -97,7 +115,6 @@ func patchPrimitive(actual reflect.Value, shadow reflect.Value) error {
 }
 
 func patchPtr(actual reflect.Value, shadow reflect.Value) error {
-	fmt.Println("patching ptr")
 	if shadow.IsNil() {
 		// no more overwriting to do
 		return nil
@@ -105,7 +122,6 @@ func patchPtr(actual reflect.Value, shadow reflect.Value) error {
 
 	if actual.IsNil() && !shadow.IsNil() {
 		// need to create a new value for actual to point at
-		fmt.Println(actual.Type().Elem())
 		pointee := reflect.New(actual.Type().Elem())
 		actual = reflect.NewAt(actual.Type(), unsafe.Pointer(actual.UnsafeAddr())).Elem()
 		actual.Set(pointee)
@@ -114,8 +130,23 @@ func patchPtr(actual reflect.Value, shadow reflect.Value) error {
 	return patch(actual.Elem(), shadow.Elem())
 }
 
+func patchSlice(actual reflect.Value, shadow reflect.Value) error {
+	// TODO: should we allow slices of different length here?
+	if actual.Len() != shadow.Len() {
+		return errors.New("cannot patch slices of different length")
+	}
+
+	for i:=0; i<actual.Len(); i++ {
+		err := patch(actual.Index(i), shadow.Index(i))
+		if err != nil {
+			return errors.Wrapf(err, "index %v:", i)
+		}
+	}
+
+	return nil
+}
+
 func unsafeSet(actual, shadow reflect.Value) error {
-	fmt.Println("unsafe set", actual, shadow)
 	actual = reflect.NewAt(actual.Type(), unsafe.Pointer(actual.UnsafeAddr())).Elem()
 	shadow = reflect.NewAt(shadow.Type(), unsafe.Pointer(shadow.UnsafeAddr())).Elem()
 	actual.Set(shadow)
