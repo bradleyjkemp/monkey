@@ -4,7 +4,7 @@ install: get_dependencies install_linters
 .PHONY: get_dependencies
 get_dependencies:
 	go get github.com/mattn/goveralls
-	go get ./...
+	go get -t ./...
 
 .PHONY: install_linters
 install_linters:
