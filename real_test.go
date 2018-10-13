@@ -11,8 +11,8 @@ import (
 
 func TestT(t *testing.T) {
 	type matcher struct {
-		matchFunc func(string,string) (bool, error)
-		mu sync.Mutex
+		matchFunc func(string, string) (bool, error)
+		mu        sync.Mutex
 	}
 	type testContext struct {
 		match *matcher
@@ -29,7 +29,7 @@ func TestT(t *testing.T) {
 	shadow := &T{
 		context: &testContext{
 			match: &matcher{
-				matchFunc: func(_,_ string) (bool, error) {
+				matchFunc: func(_, _ string) (bool, error) {
 					return true, nil
 				},
 				mu: sync.Mutex{},
@@ -40,7 +40,7 @@ func TestT(t *testing.T) {
 	err := monkey.Patch(myT, shadow)
 	require.NoError(t, err)
 
-	parentShadow := &struct{
+	parentShadow := &struct {
 		common common
 	}{
 		common{

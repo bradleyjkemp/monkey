@@ -85,7 +85,7 @@ func patchInterface(actual reflect.Value, shadow reflect.Value) error {
 
 func patchStruct(actual reflect.Value, shadow reflect.Value) error {
 	// assume this is a struct
-	for i := 0; i<actual.NumField(); i++ {
+	for i := 0; i < actual.NumField(); i++ {
 		actualStructField := actual.Type().Field(i)
 		fieldName := actualStructField.Name
 
@@ -136,7 +136,7 @@ func patchSlice(actual reflect.Value, shadow reflect.Value) error {
 		return errors.New("cannot patch slices of different length")
 	}
 
-	for i:=0; i<actual.Len(); i++ {
+	for i := 0; i < actual.Len(); i++ {
 		err := patch(actual.Index(i), shadow.Index(i))
 		if err != nil {
 			return errors.Wrapf(err, "index %v:", i)

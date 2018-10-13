@@ -8,13 +8,13 @@ import (
 )
 
 func TestBasic(t *testing.T) {
-	actual := struct{
+	actual := struct {
 		isAdmin bool
 	}{
 		isAdmin: false,
 	}
 
-	shadow := struct{
+	shadow := struct {
 		isAdmin bool
 	}{
 		isAdmin: true,
@@ -26,13 +26,13 @@ func TestBasic(t *testing.T) {
 }
 
 func TestShallowRecursivePointers(t *testing.T) {
-	actual := struct{
+	actual := struct {
 		isAdmin *bool
 	}{}
 	isAdmin := false
 	actual.isAdmin = &isAdmin
 
-	shadow := struct{
+	shadow := struct {
 		isAdmin *bool
 	}{}
 	isAdminShadow := true
@@ -49,10 +49,10 @@ func TestShallowRecursivePointers(t *testing.T) {
 }
 
 func TestDeepRecursivePointers(t *testing.T) {
-	type actualBool struct{
+	type actualBool struct {
 		bool bool
 	}
-	actual := struct{
+	actual := struct {
 		isAdmin *actualBool
 	}{
 		&actualBool{
@@ -60,10 +60,10 @@ func TestDeepRecursivePointers(t *testing.T) {
 		},
 	}
 
-	type shadowBool struct{
+	type shadowBool struct {
 		bool bool
 	}
-	shadow := struct{
+	shadow := struct {
 		isAdmin *shadowBool
 	}{
 		&shadowBool{
@@ -80,23 +80,25 @@ func TestDeepRecursivePointers(t *testing.T) {
 	require.True(t, actual.isAdmin.bool)
 }
 
-
 type flag struct {
 	isSet bool
 }
+
 func (f *flag) set() {
 	f.isSet = true
 }
 func (f *flag) get() bool {
 	return f.isSet
 }
-type settable interface{
+
+type settable interface {
 	set()
 	get() bool
 }
 type shadowFlag struct {
 	isSet bool
 }
+
 func (f *shadowFlag) set() {
 	f.isSet = true
 }
@@ -106,7 +108,7 @@ func (f *shadowFlag) get() bool {
 
 func TestShallowInterface(t *testing.T) {
 	actualFlag := &flag{}
-	actual := struct{
+	actual := struct {
 		isAdmin settable
 	}{
 		actualFlag,
@@ -130,9 +132,9 @@ func TestShallowInterface(t *testing.T) {
 	require.True(t, ok)
 }
 
-func TestDeepInterface (t *testing.T) {
+func TestDeepInterface(t *testing.T) {
 	actualFlag := &flag{}
-	actual := struct{
+	actual := struct {
 		isAdmin settable
 	}{
 		actualFlag,

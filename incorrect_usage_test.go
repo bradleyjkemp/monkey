@@ -17,4 +17,3 @@ func TestUnaddressableShadow(t *testing.T) {
 	err := monkey.Patch(&a, nil)
 	require.Error(t, err, "shadow must be passed by pointer/addressable value")
 }
-
